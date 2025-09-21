@@ -28,20 +28,27 @@ COPY --from=builder /app/ubipoller .
 # Expose no ports as this is a client application
 
 # Run the application
-# ENTRYPOINT ["./ubipoller"]
+# Set environment variable defaults (can be overridden at runtime)
+ENV MQTT_USERNAME=""
+ENV MQTT_PASSWORD=""
+ENV UBI_API_KEY=""
+ENV MQTT_BROKER="tcp://mqtt:1883"
+ENV MQTT_CLIENT_ID="ubipoller-001"
+ENV MQTT_TOPIC="mostert/ubiquiti/isp-metrics"
+ENV API_URL="https://api.ui.com/ea/isp-metrics"
+ENV METRIC_TYPE="5m"
+ENV INTERVAL="5m"
+ENV LOG_LEVEL="info"
 
-ARG MQTT_USERNAME
-ARG MQTT_PASSWORD
-ARG UBI_API_KEY
-
-CMD ["./ubipoller", \
-  "--api-key", "${UBI_API_KEY}", \
-  "--api-url", "https://api.ui.com/ea/isp-metrics", \
-  "--metric-type", "5m", \
-  "--mqtt-broker", "tcp://mqtt:1883", \
-  "--mqtt-client-id", "ubipoller-001", \
-  "--mqtt-topic", "mostert/ubiquiti/isp-metrics", \
-  "--mqtt-username", "${MQTT_USERNAME}", \
-  "--mqtt-password", "${MQTT_PASSWORD}", \
-  "--interval", "5m", \
-  "--log-level", "info"]
+# Use shell form to allow environment variable expansion
+CMD ./ubipoller \
+  --api-key "${UBI_API_KEY}" \
+  --api-url "${API_URL}" \
+  --metric-type "${METRIC_TYPE}" \
+  --mqtt-broker "${MQTT_BROKER}" \
+  --mqtt-client-id "${MQTT_CLIENT_ID}" \
+  --mqtt-topic "${MQTT_TOPIC}" \
+  --mqtt-username "${MQTT_USERNAME}" \
+  --mqtt-password "${MQTT_PASSWORD}" \
+  --interval "${INTERVAL}" \
+  --log-level "${LOG_LEVEL}"

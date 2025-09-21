@@ -151,6 +151,85 @@ COPY --from=builder /app/ubipoller .
 CMD ["./ubipoller"]
 ```
 
+### Docker Environment Variables
+
+The Docker image supports the following environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `UBI_API_KEY` | - | **Required**: Ubiquiti API key |
+| `MQTT_USERNAME` | - | **Required**: MQTT username |
+| `MQTT_PASSWORD` | - | **Required**: MQTT password |
+| `MQTT_BROKER` | `tcp://mqtt:1883` | MQTT broker URL |
+| `MQTT_CLIENT_ID` | `ubipoller-001` | MQTT client ID |
+| `MQTT_TOPIC` | `mostert/ubiquiti/isp-metrics` | Base MQTT topic |
+| `API_URL` | `https://api.ui.com/ea/isp-metrics` | Ubiquiti API URL |
+| `METRIC_TYPE` | `5m` | Metric type (5m, 1h, 1d) |
+| `INTERVAL` | `5m` | Query interval |
+| `LOG_LEVEL` | `info` | Log level |
+
+### Docker Run Example
+
+```bash
+docker run -d \
+  --name ubipoller \
+  -e UBI_API_KEY="your-api-key" \
+  -e MQTT_USERNAME="your-username" \
+  -e MQTT_PASSWORD="your-password" \
+  -e MQTT_BROKER="tcp://your-mqtt-broker:1883" \
+  ubipoller:latest
+```
+
+## Kubernetes Deployment
+
+The application is designed for easy Kubernetes deployment using environment variables.
+
+### 1. Create Secrets
+
+Generate base64 encoded secrets:
+
+```bash
+# Use the provided script
+./generate-secrets.sh
+
+# Or manually:
+echo -n "your-api-key" | base64
+echo -n "your-mqtt-username" | base64
+echo -n "your-mqtt-password" | base64
+```
+
+### 2. Apply Kubernetes Manifests
+
+```bash
+# Apply the secret
+kubectl apply -f ubipoller-secret.yaml
+
+# Deploy the application
+kubectl apply -f k8s-deployment.yaml
+
+# Or use ConfigMap approach
+kubectl apply -f k8s-configmap.yaml
+```
+
+### 3. Monitor Deployment
+
+```bash
+# Check pod status
+kubectl get pods -l app=ubipoller
+
+# View logs
+kubectl logs -f deployment/ubipoller
+
+# Check published metrics
+kubectl logs deployment/ubipoller | grep "Latency metrics published"
+```
+
+### Kubernetes Configuration Files
+
+- **`k8s-deployment.yaml`**: Basic deployment with secrets
+- **`k8s-configmap.yaml`**: Deployment using ConfigMap for non-sensitive config
+- **`generate-secrets.sh`**: Helper script to generate base64 encoded secrets
+
 ## Troubleshooting
 
 ### Common Issues

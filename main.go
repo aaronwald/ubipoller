@@ -43,6 +43,8 @@ type ISPMetrics struct {
 type MetricData struct {
 	MetricType string   `json:"metricType"`
 	Periods    []Period `json:"periods"`
+	SiteId     string   `json:"siteId"`
+	HostId     string   `json:"hostId"`
 }
 
 type Period struct {
@@ -65,6 +67,18 @@ type WANData struct {
 	PacketLoss   int    `json:"packetLoss"`
 	UploadKbps   int    `json:"upload_kbps"`
 	Uptime       int    `json:"uptime"`
+}
+
+// LatencyMetric represents simplified latency data for MQTT publishing
+type LatencyMetric struct {
+	SiteId      string    `json:"siteId"`
+	HostId      string    `json:"hostId"`
+	Timestamp   string    `json:"timestamp"`
+	AvgLatency  int       `json:"avgLatency"`
+	MaxLatency  int       `json:"maxLatency"`
+	ISPName     string    `json:"ispName"`
+	ISPAsn      string    `json:"ispAsn"`
+	PublishedAt time.Time `json:"publishedAt"`
 }
 
 // UbiquitiClient handles API interactions with Ubiquiti
@@ -202,13 +216,49 @@ func (a *App) fetchAndPublishMetrics(ctx context.Context) error {
 
 	a.logger.WithField("periods_count", len(metrics.Data)).Debug("Metrics fetched successfully")
 
-	// Publish to MQTT
-	if err := a.mqttPublisher.Publish(metrics); err != nil {
-		return fmt.Errorf("failed to publish metrics to MQTT: %w", err)
+	// Process and publish most recent latency for each site
+	latencyMetrics := a.extractLatestLatencyMetrics(metrics)
+	a.logger.WithField("sites_count", len(latencyMetrics)).Debug("Extracted latest latency metrics")
+
+	// Publish each site's latency metric to its own topic
+	for _, latencyMetric := range latencyMetrics {
+		if err := a.mqttPublisher.PublishLatency(latencyMetric, a.cli.MqttTopic); err != nil {
+			a.logger.WithError(err).WithField("siteId", latencyMetric.SiteId).Error("Failed to publish latency metric")
+			continue
+		}
 	}
 
-	a.logger.Info("Metrics fetched and published successfully")
+	a.logger.WithField("sites_published", len(latencyMetrics)).Info("Latency metrics published successfully")
 	return nil
+}
+
+// extractLatestLatencyMetrics extracts the most recent latency data for each site
+func (a *App) extractLatestLatencyMetrics(metrics *ISPMetrics) []LatencyMetric {
+	var latencyMetrics []LatencyMetric
+
+	for _, data := range metrics.Data {
+		if len(data.Periods) == 0 {
+			continue
+		}
+
+		// Get the most recent period (first one in the array)
+		latestPeriod := data.Periods[0]
+
+		latencyMetric := LatencyMetric{
+			SiteId:      data.SiteId,
+			HostId:      data.HostId,
+			Timestamp:   latestPeriod.MetricTime,
+			AvgLatency:  latestPeriod.Data.WAN.AvgLatency,
+			MaxLatency:  latestPeriod.Data.WAN.MaxLatency,
+			ISPName:     latestPeriod.Data.WAN.ISPName,
+			ISPAsn:      latestPeriod.Data.WAN.ISPAsn,
+			PublishedAt: time.Now(),
+		}
+
+		latencyMetrics = append(latencyMetrics, latencyMetric)
+	}
+
+	return latencyMetrics
 }
 
 // GetISPMetrics fetches ISP metrics from the Ubiquiti API
@@ -285,7 +335,7 @@ func NewMQTTPublisher(cli *CLI, logger *logrus.Logger) (*MQTTPublisher, error) {
 	}, nil
 }
 
-// Publish publishes metrics to MQTT
+// Publish publishes metrics to MQTT (legacy method - kept for compatibility)
 func (p *MQTTPublisher) Publish(metrics *ISPMetrics) error {
 	payload, err := json.Marshal(metrics)
 	if err != nil {
@@ -300,6 +350,32 @@ func (p *MQTTPublisher) Publish(metrics *ISPMetrics) error {
 	token := p.client.Publish(p.topic, 0, false, payload)
 	if token.Wait() && token.Error() != nil {
 		return fmt.Errorf("failed to publish to MQTT: %w", token.Error())
+	}
+
+	return nil
+}
+
+// PublishLatency publishes latency metric with siteId in topic
+func (p *MQTTPublisher) PublishLatency(latencyMetric LatencyMetric, baseTopic string) error {
+	payload, err := json.Marshal(latencyMetric)
+	if err != nil {
+		return fmt.Errorf("failed to marshal latency metric: %w", err)
+	}
+
+	// Create topic with siteId: baseTopic/siteId/latency
+	topic := fmt.Sprintf("%s/%s/latency", baseTopic, latencyMetric.SiteId)
+
+	p.logger.WithFields(logrus.Fields{
+		"topic":        topic,
+		"siteId":       latencyMetric.SiteId,
+		"avgLatency":   latencyMetric.AvgLatency,
+		"maxLatency":   latencyMetric.MaxLatency,
+		"payload_size": len(payload),
+	}).Debug("Publishing latency metric to MQTT")
+
+	token := p.client.Publish(topic, 0, false, payload)
+	if token.Wait() && token.Error() != nil {
+		return fmt.Errorf("failed to publish latency to MQTT: %w", token.Error())
 	}
 
 	return nil

@@ -5,7 +5,9 @@ A Go application that queries the Ubiquiti Site Manager API for ISP metrics and 
 ## Features
 
 - Queries Ubiquiti ISP metrics API every 5 minutes (configurable)
-- Publishes metrics data to MQTT broker
+- **Site-specific publishing**: Includes siteId in MQTT topic for multi-site deployments
+- **Latest latency focus**: Publishes only the most recent latency metrics for each site
+- Publishes simplified latency data to MQTT broker with individual topics per site
 - Supports command-line configuration
 - Structured logging with configurable levels
 - Graceful shutdown handling
@@ -77,36 +79,33 @@ go build -o ubipoller .
 
 ## Data Format
 
-The application publishes ISP metrics in JSON format to the configured MQTT topic. The data structure includes:
+The application publishes **latency-focused metrics** in JSON format to site-specific MQTT topics. Each site gets its own topic in the format: `{base-topic}/{siteId}/latency`
+
+For example, if your base topic is `ubiquiti/isp-metrics`, the published topics will be:
+- `ubiquiti/isp-metrics/66f8656d74b8b57aff0b58c3/latency`
+- `ubiquiti/isp-metrics/6156282ff71bb3051fd3efb7/latency`
+
+The simplified payload structure for each site contains only the most recent latency data:
 
 ```json
 {
-  "data": [
-    {
-      "metricType": "5m",
-      "periods": [
-        {
-          "data": {
-            "wan": {
-              "avgLatency": 9,
-              "download_kbps": 157000,
-              "downtime": 0,
-              "ispAsn": "33176",
-              "ispName": "DTC Cable",
-              "maxLatency": 9,
-              "packetLoss": 0,
-              "upload_kbps": 149000,
-              "uptime": 100
-            }
-          },
-          "metricTime": "2025-09-20T17:00:00Z",
-          "version": "9.4.19"
-        }
-      ]
-    }
-  ]
+  "siteId": "66f8656d74b8b57aff0b58c3",
+  "hostId": "28704E3BD98300000000082AC0EE000000000899909A00000000668BC714:1416131882",
+  "timestamp": "2025-09-21T17:00:00Z",
+  "avgLatency": 9,
+  "maxLatency": 12,
+  "ispName": "DTC Cable",
+  "ispAsn": "33176",
+  "publishedAt": "2025-09-21T17:05:23.123Z"
 }
 ```
+
+### Benefits of this approach:
+- **Multi-site support**: Each site publishes to its own topic
+- **Reduced data volume**: Only essential latency metrics are published
+- **Real-time focus**: Only the most recent measurement per site
+- **Easy filtering**: Subscribe to specific sites: `ubiquiti/isp-metrics/+/latency`
+- **Timestamped**: Includes both original metric time and publish time
 
 ## Monitoring and Logging
 
@@ -121,7 +120,9 @@ Example log output:
 INFO[2025-09-21T10:00:00Z] Starting ubipoller application
 INFO[2025-09-21T10:00:00Z] Configuration loaded interval=5m0s metric_type=5m mqtt_topic=ubiquiti/isp-metrics
 INFO[2025-09-21T10:00:00Z] Connected to MQTT broker
-INFO[2025-09-21T10:00:05Z] Metrics fetched and published successfully
+DEBU[2025-09-21T10:00:05Z] Extracted latest latency metrics sites_count=2
+DEBU[2025-09-21T10:00:05Z] Publishing latency metric to MQTT avgLatency=9 maxLatency=12 siteId=66f8656d74b8b57aff0b58c3 topic=ubiquiti/isp-metrics/66f8656d74b8b57aff0b58c3/latency
+INFO[2025-09-21T10:00:05Z] Latency metrics published successfully sites_published=2
 ```
 
 ## Environment Variables

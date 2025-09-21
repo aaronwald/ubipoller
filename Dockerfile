@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -34,15 +34,14 @@ ARG MQTT_USERNAME
 ARG MQTT_PASSWORD
 ARG UBI_API_KEY
 
-CMD ["/app/ubipoller",
-  "-api-key", "${UBI_API_KEY}" ,
-  "--api-url", "https://api.ui.com/ea/isp-metrics" ,
-  "--metric-type", "5m" ,
-  "--mqtt-broker", "tcp://mqtt:1883" ,
-  "--mqtt-client-id", "ubipoller-001" ,
-  "--mqtt-topic", "mostert/ubiquiti/isp-metrics" ,
-  "--mqtt-username", "${MQTT_USERNAME}" ,
-  "--mqtt-password", "${MQTT_PASSWORD}" ,
-  "--interval", "5m" ,
-  "--log-level", "info"
-]
+CMD ["/app/ubipoller", \
+  "--api-key", "${UBI_API_KEY}", \
+  "--api-url", "https://api.ui.com/ea/isp-metrics", \
+  "--metric-type", "5m", \
+  "--mqtt-broker", "tcp://mqtt:1883", \
+  "--mqtt-client-id", "ubipoller-001", \
+  "--mqtt-topic", "mostert/ubiquiti/isp-metrics", \
+  "--mqtt-username", "${MQTT_USERNAME}", \
+  "--mqtt-password", "${MQTT_PASSWORD}", \
+  "--interval", "5m", \
+  "--log-level", "info"]

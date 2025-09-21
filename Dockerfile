@@ -34,7 +34,7 @@ ARG MQTT_USERNAME
 ARG MQTT_PASSWORD
 ARG UBI_API_KEY
 
-CMD ["/app/ubipoller", \
+CMD ["./ubipoller", \
   "--api-key", "${UBI_API_KEY}", \
   "--api-url", "https://api.ui.com/ea/isp-metrics", \
   "--metric-type", "5m", \

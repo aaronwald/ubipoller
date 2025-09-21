@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  ubipoller:
+    build: .
+    container_name: ubipoller
+    restart: unless-stopped
+    environment:
+      - TZ=UTC
+    command: [
+      "--api-key", "${UBIQUITI_API_KEY}",
+      "--mqtt-broker", "${MQTT_BROKER:-tcp://mosquitto:1883}",
+      "--mqtt-client-id", "${MQTT_CLIENT_ID:-ubipoller}",
+      "--mqtt-topic", "${MQTT_TOPIC:-ubiquiti/isp-metrics}",
+      "--mqtt-username", "${MQTT_USERNAME}",
+      "--mqtt-password", "${MQTT_PASSWORD}",
+      "--interval", "${POLL_INTERVAL:-5m}",
+      "--log-level", "${LOG_LEVEL:-info}"
+    ]
+    depends_on:
+      - mosquitto
+    networks:
+      - ubipoller-net
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-logs:/mosquitto/log
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      - ubipoller-net
+
+volumes:
+  mosquitto-data:
+  mosquitto-logs:
+
+networks:
+  ubipoller-net:
+    driver: bridge
